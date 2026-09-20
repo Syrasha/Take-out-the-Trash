@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Take out the Trash
+## Notes: One button. Shift-click to destroy the cheapest gray (poor quality) item in your bags, without opening them.
+## Version: 1.0.0
+## Author: Syrasha
+## SavedVariables: TakeOutTheTrashDB
+## IconTexture: Interface\PaperDollInfoFrame\UI-GearManager-LeaveItem-Transparent
+
+TakeOutTheTrash.lua
