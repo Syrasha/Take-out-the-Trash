@@ -358,8 +358,7 @@ function TOTT:CreateButton()
 		if not self.isMoving then return end
 		self.isMoving = nil
 		self:StopMovingOrSizing()
-		local point, _, _, x, y = self:GetPoint()
-		TakeOutTheTrashDB.pos = { point = point, x = x, y = y }
+		TOTT:SavePosition()
 	end)
 
 	b:SetScript("PreClick", function(self, mouseButton)
@@ -379,15 +378,68 @@ function TOTT:CreateButton()
 	self:RestorePosition()
 end
 
+function TOTT:SavePosition()
+	local b = self.button
+	if not b then return end
+
+	local point, relativeTo, relativePoint, x, y = b:GetPoint()
+	if not point then return end
+
+	if relativeTo and relativeTo ~= UIParent then
+		local bx, by = b:GetCenter()
+		local ux, uy = UIParent:GetCenter()
+		if not (bx and by and ux and uy) then return end
+
+		local buttonScale = b:GetEffectiveScale() or 1
+		local uiScale     = UIParent:GetEffectiveScale() or 1
+		if uiScale <= 0 then uiScale = 1 end
+
+		point, relativePoint = "CENTER", "CENTER"
+		x = (bx * buttonScale) / uiScale - ux
+		y = (by * buttonScale) / uiScale - uy
+	end
+
+	TakeOutTheTrashDB.pos = {
+		point         = point,
+		relativePoint = relativePoint or point,
+		x             = math.floor((x or 0) + 0.5),
+		y             = math.floor((y or 0) + 0.5),
+	}
+end
+
 function TOTT:RestorePosition()
 	local b = self.button
 	if not b then return end
+
 	b:ClearAllPoints()
+
 	local pos = TakeOutTheTrashDB.pos
-	if pos then
-		b:SetPoint(pos.point or "CENTER", UIParent, pos.point or "CENTER", pos.x or 0, pos.y or 0)
-	else
+	if type(pos) ~= "table" or type(pos.point) ~= "string" then
 		b:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
+		return
+	end
+
+	local point         = pos.point
+	local relativePoint = (type(pos.relativePoint) == "string" and pos.relativePoint) or point
+	local x             = tonumber(pos.x) or 0
+	local y             = tonumber(pos.y) or 0
+
+	local ok = pcall(b.SetPoint, b, point, UIParent, relativePoint, x, y)
+	if not ok then
+		b:ClearAllPoints()
+		b:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
+		return
+	end
+
+	local width, height = b:GetWidth(), b:GetHeight()
+	local left, bottom = b:GetLeft(), b:GetBottom()
+	local screenWidth, screenHeight = UIParent:GetWidth(), UIParent:GetHeight()
+	if left and bottom and screenWidth and screenHeight then
+		if left + width < 0 or left > screenWidth or bottom + height < 0 or bottom > screenHeight then
+			b:ClearAllPoints()
+			b:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
+			TakeOutTheTrashDB.pos = nil
+		end
 	end
 end
 
@@ -537,6 +589,7 @@ TOTT.scanTip:SetOwner(UIParent, "ANCHOR_NONE")
 
 TOTT:RegisterEvent("ADDON_LOADED")
 TOTT:RegisterEvent("PLAYER_LOGIN")
+TOTT:RegisterEvent("PLAYER_LOGOUT")
 TOTT:RegisterEvent("BAG_UPDATE_DELAYED")
 TOTT:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 
@@ -555,6 +608,14 @@ TOTT:SetScript("OnEvent", function(self, event, arg1, arg2)
 	elseif event == "PLAYER_LOGIN" then
 		self:CreateButton()
 		self:Refresh()
+
+	elseif event == "PLAYER_LOGOUT" then
+		local b = self.button
+		if b and b.isMoving then
+			b.isMoving = nil
+			b:StopMovingOrSizing()
+		end
+		self:SavePosition()
 
 	elseif event == "BAG_UPDATE_DELAYED" then
 		self:Refresh()
